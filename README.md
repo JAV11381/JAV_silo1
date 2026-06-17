@@ -1,6 +1,6 @@
-=======================================================================================
-===================================== MEMORY GAME =====================================
-=======================================================================================
+==================================================================
+========================== MEMORY GAME ===========================
+==================================================================
 This project is an attemtp to create a simple desktop application for a quick game to try to exercise and improve my memory.
 The idea is to create a sequence of numbers that will have to be input by the user whenever the game is played.
 The application asks the user to define the following:
