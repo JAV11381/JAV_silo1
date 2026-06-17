@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily Memory Sequence Game</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --card: #16213e;
+      --accent: #0f3460;
+      --highlight: #e94560;
+      --text: #eaeaea;
+      --success: #2ecc71;
+      --danger: #e74c3c;
+      --warning: #f1c40f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex; justify-content: center; align-items: center;
+      min-height: 100vh;
+    }
+    #app {
+      width: 100%; max-width: 600px;
+      padding: 20px;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+    h1, h2 { margin-top: 0; text-align: center; }
+    h1 { color: var(--highlight); font-size: 1.8rem; }
+    h2 { color: #fff; font-size: 1.4rem; margin-bottom: 8px; }
+    p { text-align: center; color: #ccc; }
+    .btn {
+      display: block; width: 100%;
+      padding: 14px;
+      margin: 10px 0;
+      border: none; border-radius: 10px;
+      font-size: 1rem; font-weight: 600;
+      cursor: pointer; transition: transform .1s, opacity .2s;
+    }
+    .btn:hover { transform: translateY(-2px); opacity: .92; }
+    .btn-primary { background: var(--highlight); color: #fff; }
+    .btn-secondary { background: var(--accent); color: #fff; }
+    .btn-success { background: var(--success); color: #1a1a2e; }
+    .btn-warning { background: var(--warning); color: #1a1a2e; }
+    .streak-item {
+      background: var(--accent);
+      padding: 14px; border-radius: 10px;
+      margin: 8px 0; cursor: pointer;
+      transition: background .2s;
+    }
+    .streak-item:hover { background: #1a4a7a; }
+    .streak-item strong { color: #fff; }
+    .streak-item small { color: #bbb; }
+    label {
+      display: block; margin: 16px 0 6px;
+      font-weight: 600; color: #ddd;
+    }
+    input[type="number"], input[type="text"] {
+      width: 100%; padding: 12px;
+      border-radius: 8px; border: 1px solid #444;
+      background: #0f1a2e; color: #fff;
+      font-size: 1rem;
+    }
+    .big-number {
+      font-size: 5rem; font-weight: 800;
+      text-align: center; color: var(--highlight);
+      margin: 20px 0; letter-spacing: 4px;
+    }
+    .countdown {
+      text-align: center; font-size: 1.3rem;
+      color: #f1c40f; margin-bottom: 10px;
+    }
+    .inputs-grid {
+      display: grid; grid-template-columns: 80px 1fr;
+      gap: 10px; align-items: center;
+      max-height: 320px; overflow-y: auto;
+      padding-right: 4px;
+    }
+    .inputs-grid label { margin: 0; text-align: right; color: #ccc; }
+    .inputs-grid input {
+      padding: 10px; border-radius: 8px;
+      border: 1px solid #444; background: #0f1a2e; color: #fff;
+      font-size: 1.1rem; width: 100%;
+    }
+    .result-status {
+      text-align: center; font-size: 2.2rem; font-weight: 800;
+      margin: 10px 0;
+    }
+    .sequence-row {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      justify-content: center; margin: 14px 0;
+    }
+    .seq-box {
+      padding: 8px 12px; border-radius: 8px;
+      font-weight: 700; font-size: 1rem;
+      background: var(--accent);
+    }
+    .seq-box.correct { background: var(--success); color: #1a1a2e; }
+    .seq-box.wrong   { background: var(--danger);  color: #fff; }
+    .hidden { display: none; }
+    .chart-container {
+      position: relative; height: 300px; margin-top: 10px;
+    }
+    .cheat-info {
+      background: rgba(233, 69, 96, 0.1);
+      border: 1px solid var(--highlight);
+      border-radius: 8px;
+      padding: 10px;
+      margin: 10px 0;
+      text-align: center;
+      font-size: 0.95rem;
+      color: #ff9aa2;
+    }
+    .stats-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 10px; margin: 10px 0;
+    }
+    .stat-box {
+      background: var(--accent);
+      padding: 10px; border-radius: 8px;
+      text-align: center;
+    }
+    .stat-box small { color: #aaa; display: block; }
+    .stat-box strong { color: #fff; font-size: 1.2rem; }
+    .day-row {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--accent); padding: 10px 14px;
+      border-radius: 8px; margin: 6px 0;
+    }
+    .day-row .day-label { font-weight: 700; width: 70px; color: #ccc; }
+    .day-row .day-num { font-size: 1.2rem; font-weight: 800; color: var(--highlight); flex: 1; text-align: center; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+<script>
+  // -----------------------------------------------------------------------
+  // Persistence
+  // -----------------------------------------------------------------------
+  const STORAGE_KEY = 'memoryGameData';
+
+  function loadData() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+  function saveData(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+  function streakKey(digits, time) {
+    return `${digits}d_${time}s`;
+  }
+  function todayStr() {
+    return new Date().toISOString().slice(0, 10);
+  }
+  function randNumber(digits) {
+    const low = 10 ** (digits - 1);
+    const high = (10 ** digits) - 1;
+    return String(Math.floor(Math.random() * (high - low + 1)) + low);
+  }
+  function migrateStreak(info) {
+    if (!info.history) info.history = [];
+    info.history.forEach(day => {
+      if (day.rawScore === undefined) day.rawScore = day.score != null ? day.score : 0;
+      if (day.score === undefined) day.score = day.rawScore;
+      if (day.fullSequenceCheats === undefined) day.fullSequenceCheats = 0;
+      if (day.singleDayCheats === undefined) day.singleDayCheats = 0;
+    });
+    if (!info.totalFullSequenceCheats) info.totalFullSequenceCheats = 0;
+    if (!info.totalSingleDayCheats) info.totalSingleDayCheats = 0;
+    if (!info.pendingCheats) info.pendingCheats = { fullSequence: 0, singleDay: 0 };
+    if (info.bestScore === undefined) info.bestScore = 0;
+    return info;
+  }
+
+  let data = loadData();
+  let currentKey = null;
+  let timerId = null;
+
+  // -----------------------------------------------------------------------
+  // Views
+  // -----------------------------------------------------------------------
+  const app = document.getElementById('app');
+  function render(html) {
+    app.innerHTML = `<div class="card">${html}</div>`;
+  }
+
+  function homeScreen() {
+    currentKey = null;
+    const streaks = data.streaks || {};
+    let listHtml = '';
+    if (Object.keys(streaks).length === 0) {
+      listHtml = `<p>No saved streaks yet.</p>`;
+    } else {
+      listHtml = Object.entries(streaks).map(([key, info]) => {
+        migrateStreak(info);
+        const days = info.history?.length || 0;
+        const best = info.bestScore != null ? Math.round(info.bestScore * 100) : 0;
+        return `<div class="streak-item" onclick="loadStreak('${key}')">
+          <strong>${info.numDigits} digits</strong> &bull; ${info.displayTime}s display
+          <br><small>${days} days played &bull; Best score: ${best}%</small>
+        </div>`;
+      }).join('');
+    }
+    saveData(data);
+
+    render(`
+      <h1>🧠 Daily Memory Sequence</h1>
+      <p>Choose an existing streak or start a new one.</p>
+      ${listHtml}
+      <button class="btn btn-primary" onclick="setupScreen()">➕ Start New Streak</button>
+    `);
+  }
+
+  function setupScreen() {
+    render(`
+      <h2>New Streak Setup</h2>
+      <label for="digits">Number of digits per number</label>
+      <input type="number" id="digits" min="1" max="10" value="2">
+      <label for="time">Display time (seconds)</label>
+      <input type="number" id="time" min="1" max="60" value="3">
+      <button class="btn btn-success" onclick="startNewStreak()" style="margin-top:18px">Start</button>
+      <button class="btn btn-secondary" onclick="homeScreen()">Back</button>
+    `);
+  }
+
+  function dashboardScreen() {
+    const info = data.streaks[currentKey];
+    migrateStreak(info);
+    const days = info.history?.length || 0;
+    const best = info.bestScore != null ? Math.round(info.bestScore * 100) : 0;
+    const pendingFull = info.pendingCheats?.fullSequence || 0;
+    const pendingSingle = info.pendingCheats?.singleDay || 0;
+    const pendingHtml = (pendingFull > 0 || pendingSingle > 0)
+      ? `<div class="cheat-info">⚠️ Pending penalties: ${pendingFull} full-sequence reveal(s) & ${pendingSingle} single-day reveal(s)</div>`
+      : '';
+
+    render(`
+      <h2>🔢 ${info.numDigits}-digit Streak</h2>
+      <p>Display time: ${info.displayTime}s &bull; Days played: ${days}<br>Best score: ${best}%</p>
+      ${pendingHtml}
+      <div class="stats-grid">
+        <div class="stat-box"><small>Full seq reveals</small><strong>${info.totalFullSequenceCheats}</strong></div>
+        <div class="stat-box"><small>Single day reveals</small><strong>${info.totalSingleDayCheats}</strong></div>
+      </div>
+      <button class="btn btn-primary" onclick="playToday()">▶ Play Today</button>
+      <button class="btn btn-warning" onclick="revealFullSequence()">👁 Show Full Sequence</button>
+      <button class="btn btn-warning" onclick="selectSingleDayScreen()">👁 Show Single Day</button>
+      <button class="btn btn-secondary" onclick="showPlot()">📈 View Progress Plot</button>
+      <button class="btn btn-secondary" onclick="homeScreen()">🏠 Home</button>
+    `);
+  }
+
+  function revealFullSequence() {
+    const info = data.streaks[currentKey];
+    migrateStreak(info);
+    const history = info.history || [];
+    if (history.length === 0) {
+      alert('No numbers to show yet. Play at least one day first!');
+      return;
+    }
+    // Increment pending cheat
+    if (!info.pendingCheats) info.pendingCheats = { fullSequence: 0, singleDay: 0 };
+    info.pendingCheats.fullSequence += 1;
+    saveData(data);
+
+    const displayTime = info.displayTime;
+    let rowsHtml = '';
+    history.forEach((h, i) => {
+      rowsHtml += `
+        <div class="day-row">
+          <div class="day-label">Day ${i+1}</div>
+          <div class="day-num">${h.number}</div>
+        </div>`;
+    });
+
+    render(`
+      <h2>Full Sequence</h2>
+      <p>Memorize all numbers shown below</p>
+      <div class="countdown" id="countdown">${displayTime}</div>
+      <div style="max-height: 360px; overflow-y: auto;">${rowsHtml}</div>
+    `);
+
+    let remaining = displayTime;
+    const cdEl = document.getElementById('countdown');
+    clearInterval(timerId);
+    timerId = setInterval(() => {
+      remaining -= 1;
+      if (cdEl) cdEl.textContent = remaining;
+      if (remaining <= 0) {
+        clearInterval(timerId);
+        dashboardScreen();
+      }
+    }, 1000);
+  }
+
+  function selectSingleDayScreen() {
+    const info = data.streaks[currentKey];
+    migrateStreak(info);
+    const history = info.history || [];
+    if (history.length === 0) {
+      alert('No numbers to show yet. Play at least one day first!');
+      return;
+    }
+    render(`
+      <h2>Show Single Day</h2>
+      <p>Which day do you want to see?</p>
+      <label for="dayInput">Day number (1-${history.length})</label>
+      <input type="number" id="dayInput" min="1" max="${history.length}" value="1">
+      <button class="btn btn-success" onclick="revealSingleDay()" style="margin-top:14px">Reveal</button>
+      <button class="btn btn-secondary" onclick="dashboardScreen()">Back</button>
+    `);
+  }
+
+  function revealSingleDay() {
+    const info = data.streaks[currentKey];
+    const history = info.history || [];
+    const dayInput = document.getElementById('dayInput');
+    const day = parseInt(dayInput.value, 10);
+    if (!day || day < 1 || day > history.length) {
+      alert(`Please enter a valid day between 1 and ${history.length}.`);
+      return;
+    }
+    // Increment pending cheat
+    if (!info.pendingCheats) info.pendingCheats = { fullSequence: 0, singleDay: 0 };
+    info.pendingCheats.singleDay += 1;
+    saveData(data);
+
+    const displayTime = info.displayTime;
+    const number = history[day - 1].number;
+
+    render(`
+      <h2>Day ${day}</h2>
+      <p>Memorize this number</p>
+      <div class="big-number">${number}</div>
+      <div class="countdown" id="countdown">${displayTime}</div>
+    `);
+
+    let remaining = displayTime;
+    const cdEl = document.getElementById('countdown');
+    clearInterval(timerId);
+    timerId = setInterval(() => {
+      remaining -= 1;
+      if (cdEl) cdEl.textContent = remaining;
+      if (remaining <= 0) {
+        clearInterval(timerId);
+        dashboardScreen();
+      }
+    }, 1000);
+  }
+
+  function revealScreen() {
+    const info = data.streaks[currentKey];
+    migrateStreak(info);
+    const history = info.history || [];
+    const dayNumber = history.length + 1;
+    const today = todayStr();
+
+    let todaysNum;
+    const last = history[history.length - 1];
+    if (last && last.date === today && last.number) {
+      todaysNum = last.number;
+    } else {
+      todaysNum = randNumber(info.numDigits);
+      history.push({ date: today, number: todaysNum, score: null, rawScore: null, fullSequenceCheats: 0, singleDayCheats: 0 });
+      saveData(data);
+    }
+
+    render(`
+      <h2>Day ${dayNumber}</h2>
+      <p>Memorize this number</p>
+      <div class="big-number">${todaysNum}</div>
+      <div class="countdown" id="countdown">${info.displayTime}</div>
+    `);
+
+    let remaining = info.displayTime;
+    const cdEl = document.getElementById('countdown');
+    clearInterval(timerId);
+    timerId = setInterval(() => {
+      remaining -= 1;
+      if (cdEl) cdEl.textContent = remaining;
+      if (remaining <= 0) {
+        clearInterval(timerId);
+        inputScreen();
+      }
+    }, 1000);
+  }
+
+  function inputScreen() {
+    const info = data.streaks[currentKey];
+    const history = info.history || [];
+    const dayNumber = history.length;
+
+    let inputsHtml = '';
+    for (let i = 0; i < dayNumber; i++) {
+      inputsHtml += `
+        <label>Day ${i + 1}</label>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" id="ans-${i}">
+      `;
+    }
+
+    render(`
+      <h2>Day ${dayNumber} - Recall</h2>
+      <p>Type the numbers in order from Day 1 to today.</p>
+      <div class="inputs-grid">${inputsHtml}</div>
+      <button class="btn btn-success" onclick="checkAnswers()" style="margin-top:16px">Submit</button>
+    `);
+  }
+
+  function resultScreen(correct, total, rawScore, adjustedScore, fullSeq, singleDay) {
+    const info = data.streaks[currentKey];
+    const history = info.history || [];
+    const status = adjustedScore === 1 ? '✅ RIGHT' : '❌ WRONG';
+    const statusColor = adjustedScore === 1 ? 'var(--success)' : 'var(--danger)';
+
+    let seqHtml = '';
+    for (let i = 0; i < history.length; i++) {
+      const userVal = document.getElementById(`ans-${i}`)?.value.trim() || '';
+      const isCorrect = userVal === history[i].number;
+      seqHtml += `<span class="seq-box ${isCorrect ? 'correct' : 'wrong'}">${history[i].number}</span>`;
+    }
+
+    let penaltyHtml = '';
+    if (fullSeq > 0 || singleDay > 0) {
+      const penaltyPct = Math.round((fullSeq * 0.10 + singleDay * 0.02) * 100);
+      penaltyHtml = `<div class="cheat-info">⚠️ Penalties applied: -${penaltyPct}% (${fullSeq} full-seq + ${singleDay} single-day reveals)</div>`;
+    }
+
+    render(`
+      <h2>Result</h2>
+      <div class="result-status" style="color:${statusColor}">${status}</div>
+      <p style="font-size:1.2rem">${correct} / ${total} correct</p>
+      <p>Raw score: ${Math.round(rawScore * 100)}% &rarr; Adjusted score: ${Math.round(adjustedScore * 100)}%</p>
+      ${penaltyHtml}
+      <div class="sequence-row">${seqHtml}</div>
+      <button class="btn btn-secondary" onclick="showPlot()">📈 View Plot</button>
+      <button class="btn btn-secondary" onclick="dashboardScreen()">Dashboard</button>
+      <button class="btn btn-secondary" onclick="homeScreen()">🏠 Home</button>
+    `);
+  }
+
+  function plotScreen() {
+    const info = data.streaks[currentKey];
+    migrateStreak(info);
+    const history = info.history || [];
+    if (history.length === 0) {
+      alert('No data to plot yet.');
+      return;
+    }
+
+    const labels = history.map((_, i) => `Day ${i + 1}`);
+    const scores = history.map(h => h.score != null ? Math.round(h.score * 100) : 0);
+    const rawScores = history.map(h => h.rawScore != null ? Math.round(h.rawScore * 100) : 0);
+    const pointColors = history.map(h => {
+      if (h.fullSequenceCheats > 0) return '#e74c3c'; // red
+      if (h.singleDayCheats > 0) return '#f1c40f';   // yellow
+      return '#2ecc71';                               // green
+    });
+    const pointRadii = history.map(h => {
+      if (h.fullSequenceCheats > 0 || h.singleDayCheats > 0) return 7;
+      return 5;
+    });
+
+    // Build cheat annotation text for table
+    let cheatRows = '';
+    history.forEach((h, i) => {
+      let cheatText = '<span style="color:#2ecc71">None</span>';
+      if (h.fullSequenceCheats > 0 && h.singleDayCheats > 0) {
+        cheatText = `<span style="color:#e74c3c">Full-seq (${h.fullSequenceCheats}) + Single (${h.singleDayCheats})</span>`;
+      } else if (h.fullSequenceCheats > 0) {
+        cheatText = `<span style="color:#e74c3c">Full-seq (${h.fullSequenceCheats})</span>`;
+      } else if (h.singleDayCheats > 0) {
+        cheatText = `<span style="color:#f1c40f">Single-day (${h.singleDayCheats})</span>`;
+      }
+      cheatRows += `<tr><td style="padding:6px 12px;border-bottom:1px solid #444">Day ${i+1}</td><td style="padding:6px 12px;border-bottom:1px solid #444">${Math.round(h.score*100)}%</td><td style="padding:6px 12px;border-bottom:1px solid #444">${cheatText}</td></tr>`;
+    });
+
+    render(`
+      <h2>📈 Progress</h2>
+      <p>${info.numDigits} digits &bull; ${info.displayTime}s display</p>
+      <div class="chart-container">
+        <canvas id="progressChart"></canvas>
+      </div>
+      <div style="margin-top:14px;max-height:200px;overflow-y:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+          <thead><tr style="color:#fff"><th style="text-align:left;padding:6px 12px;border-bottom:2px solid #555">Day</th><th style="text-align:left;padding:6px 12px;border-bottom:2px solid #555">Score</th><th style="text-align:left;padding:6px 12px;border-bottom:2px solid #555">Cheats Used</th></tr></thead>
+          <tbody>${cheatRows}</tbody>
+        </table>
+      </div>
+      <div style="margin-top:10px;font-size:0.85rem;color:#aaa;text-align:center">
+        <span style="color:#2ecc71">● Green</span> = No cheats &nbsp;
+        <span style="color:#f1c40f">● Yellow</span> = Single-day reveal &nbsp;
+        <span style="color:#e74c3c">● Red</span> = Full-sequence reveal
+      </div>
+      <button class="btn btn-secondary" onclick="dashboardScreen()">Back</button>
+    `);
+
+    const ctx = document.getElementById('progressChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Raw Score (%)',
+            data: rawScores,
+            borderColor: 'rgba(255,255,255,0.3)',
+            backgroundColor: 'transparent',
+            borderDash: [5, 5],
+            tension: 0.3,
+            pointRadius: 0,
+            order: 2
+          },
+          {
+            label: 'Adjusted Score (%)',
+            data: scores,
+            borderColor: '#e94560',
+            backgroundColor: 'rgba(233, 69, 96, 0.15)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: pointRadii,
+            pointBackgroundColor: pointColors,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            order: 1
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: 105,
+            grid: { color: 'rgba(255,255,255,0.1)' },
+            ticks: { color: '#ccc' }
+          },
+          x: {
+            grid: { color: 'rgba(255,255,255,0.1)' },
+            ticks: { color: '#ccc' }
+          }
+        },
+        plugins: {
+          legend: { labels: { color: '#ccc' } },
+          tooltip: {
+            callbacks: {
+              afterLabel: function(context) {
+                const idx = context.dataIndex;
+                const h = history[idx];
+                if (!h) return '';
+                const parts = [];
+                if (h.fullSequenceCheats > 0) parts.push(`Full-seq reveals: ${h.fullSequenceCheats}`);
+                if (h.singleDayCheats > 0) parts.push(`Single-day reveals: ${h.singleDayCheats}`);
+                return parts.length ? 'Cheats: ' + parts.join(', ') : 'No cheats used';
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // Actions
+  // -----------------------------------------------------------------------
+  function startNewStreak() {
+    const digits = parseInt(document.getElementById('digits').value, 10);
+    const time = parseInt(document.getElementById('time').value, 10);
+    if (!digits || digits < 1 || !time || time < 1) {
+      alert('Please enter valid numbers (minimum 1).');
+      return;
+    }
+    const key = streakKey(digits, time);
+    if (!data.streaks) data.streaks = {};
+    if (!data.streaks[key]) {
+      data.streaks[key] = {
+        numDigits: digits,
+        displayTime: time,
+        history: [],
+        bestScore: 0,
+        totalFullSequenceCheats: 0,
+        totalSingleDayCheats: 0,
+        pendingCheats: { fullSequence: 0, singleDay: 0 }
+      };
+      saveData(data);
+    }
+    loadStreak(key);
+  }
+
+  function loadStreak(key) {
+    currentKey = key;
+    const info = data.streaks[key];
+    migrateStreak(info);
+    saveData(data);
+    dashboardScreen();
+  }
+
+  function playToday() {
+    revealScreen();
+  }
+
+  function showPlot() {
+    if (!currentKey) { alert('No streak selected.'); return; }
+    plotScreen();
+  }
+
+  function checkAnswers() {
+    const info = data.streaks[currentKey];
+    migrateStreak(info);
+    const history = info.history || [];
+    const total = history.length;
+    let correct = 0;
+    for (let i = 0; i < total; i++) {
+      const val = document.getElementById(`ans-${i}`)?.value.trim() || '';
+      if (val === history[i].number) correct++;
+    }
+    const rawScore = total > 0 ? correct / total : 0;
+
+    const fullSeq = info.pendingCheats?.fullSequence || 0;
+    const singleDay = info.pendingCheats?.singleDay || 0;
+    const penalty = fullSeq * 0.10 + singleDay * 0.02;
+    const adjustedScore = Math.max(0, rawScore - penalty);
+
+    // Record totals and day stats
+    info.totalFullSequenceCheats = (info.totalFullSequenceCheats || 0) + fullSeq;
+    info.totalSingleDayCheats = (info.totalSingleDayCheats || 0) + singleDay;
+
+    if (history.length > 0) {
+      const last = history[history.length - 1];
+      last.rawScore = rawScore;
+      last.score = adjustedScore;
+      last.fullSequenceCheats = (last.fullSequenceCheats || 0) + fullSeq;
+      last.singleDayCheats = (last.singleDayCheats || 0) + singleDay;
+    }
+
+    if (adjustedScore > (info.bestScore || 0)) info.bestScore = adjustedScore;
+    info.pendingCheats = { fullSequence: 0, singleDay: 0 };
+    saveData(data);
+
+    resultScreen(correct, total, rawScore, adjustedScore, fullSeq, singleDay);
+  }
+
+  // -----------------------------------------------------------------------
+  // Init
+  // -----------------------------------------------------------------------
+  homeScreen();
+</script>
+</body>
+</html>
