@@ -1,4 +1,3 @@
-# ===== MEMORY GAME =====
 ===== MEMORY GAME =====
 
 This project is an attemtp to create a simple desktop application for a quick game to try to exercise and improve my memory.
