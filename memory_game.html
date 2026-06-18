@@ -139,6 +139,121 @@
     }
     .day-row .day-label { font-weight: 700; width: 70px; color: #ccc; }
     .day-row .day-num { font-size: 1.2rem; font-weight: 800; color: var(--highlight); flex: 1; text-align: center; }
+
+    /* Playful sequence-reveal stage */
+    .reveal-header { text-align: center; }
+    .reveal-header h2 { margin-bottom: 4px; }
+    .reveal-stage {
+      position: relative;
+      min-height: 220px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      margin: 10px 0;
+    }
+    .train-track {
+      position: relative;
+      width: 100%;
+      height: 160px;
+      overflow: hidden;
+    }
+    .train-track::before {
+      content: '';
+      position: absolute;
+      bottom: 22px;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #555 50%, transparent 50%);
+      background-size: 24px 4px;
+      opacity: 0.45;
+    }
+    .train {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+      will-change: transform;
+      z-index: 2;
+    }
+    .train.exiting {
+      transform: translateX(-160vw);
+      transition: transform 2s ease-in;
+    }
+    .train-carriage {
+      min-width: 90px;
+      height: 100px;
+      border-radius: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-weight: 800;
+      color: #1a1a2e;
+      background: var(--success);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.35), inset 0 -6px 0 rgba(0,0,0,0.1);
+      opacity: 0;
+      transform: scale(0.35) translateY(60px);
+      animation: carriagePop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+      position: relative;
+      border: 3px solid rgba(255,255,255,0.25);
+    }
+    .train-carriage.wrong {
+      background: var(--danger);
+      color: #fff;
+    }
+    .train-carriage::after {
+      content: '🛞';
+      position: absolute;
+      bottom: -14px;
+      font-size: 1.1rem;
+      opacity: 0.85;
+    }
+    .train-carriage .day-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 0.75;
+      margin-bottom: 2px;
+    }
+    .train-carriage .carriage-number {
+      font-size: 2.6rem;
+      line-height: 1;
+      letter-spacing: 2px;
+    }
+    .train-carriage .user-answer {
+      font-size: 0.8rem;
+      margin-top: 4px;
+      opacity: 0.92;
+      font-weight: 600;
+    }
+    @keyframes carriagePop {
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .reveal-hint {
+      text-align: center;
+      color: #bbb;
+      font-size: 1.15rem;
+      min-height: 32px;
+      animation: pulseHint 1.5s infinite;
+    }
+    @keyframes pulseHint {
+      0%, 100% { opacity: 0.7; }
+      50% { opacity: 1; }
+    }
+    .train-whistle {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 6px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
   </style>
 </head>
 <body>
@@ -417,17 +532,13 @@
     `);
   }
 
-  function resultScreen(correct, total, rawScore, adjustedScore, fullSeq, singleDay) {
-    const info = data.streaks[currentKey];
-    const history = info.history || [];
+  function resultScreen(correct, total, rawScore, adjustedScore, fullSeq, singleDay, checks) {
     const status = adjustedScore === 1 ? '✅ RIGHT' : '❌ WRONG';
     const statusColor = adjustedScore === 1 ? 'var(--success)' : 'var(--danger)';
 
     let seqHtml = '';
-    for (let i = 0; i < history.length; i++) {
-      const userVal = document.getElementById(`ans-${i}`)?.value.trim() || '';
-      const isCorrect = userVal === history[i].number;
-      seqHtml += `<span class="seq-box ${isCorrect ? 'correct' : 'wrong'}">${history[i].number}</span>`;
+    for (let i = 0; i < checks.length; i++) {
+      seqHtml += `<span class="seq-box ${checks[i].isCorrect ? 'correct' : 'wrong'}">${checks[i].number}</span>`;
     }
 
     let penaltyHtml = '';
@@ -447,6 +558,135 @@
       <button class="btn btn-secondary" onclick="dashboardScreen()">Dashboard</button>
       <button class="btn btn-secondary" onclick="homeScreen()">🏠 Home</button>
     `);
+  }
+
+  function launchPlayfulReveal(correct, total, rawScore, adjustedScore, fullSeq, singleDay) {
+    const info = data.streaks[currentKey];
+    const history = info.history || [];
+    const checks = history.map((h, i) => {
+      const userVal = document.getElementById(`ans-${i}`)?.value.trim() || '';
+      return { number: h.number, userVal: userVal, isCorrect: userVal === h.number };
+    });
+
+    const status = adjustedScore === 1 ? '✅ RIGHT' : '❌ WRONG';
+    const statusColor = adjustedScore === 1 ? 'var(--success)' : 'var(--danger)';
+
+    render(`
+      <h2>Result</h2>
+      <div class="result-status" style="color:${statusColor}">${status}</div>
+      <p style="font-size:1.2rem">${correct} / ${total} correct</p>
+      <p>Raw score: ${Math.round(rawScore * 100)}% &rarr; Adjusted score: ${Math.round(adjustedScore * 100)}%</p>
+      <p style="color:#aaa;margin-top:24px;font-size:1.1rem">
+        The sequence train is coming…<br>
+        <strong>Press any key</strong> to start the show 🚂
+      </p>
+    `);
+
+    function startReveal(e) {
+      document.removeEventListener('keydown', startReveal);
+      if (startTimeout) clearTimeout(startTimeout);
+      playfulReveal(checks, correct, total, rawScore, adjustedScore, fullSeq, singleDay);
+    }
+
+    document.addEventListener('keydown', startReveal);
+    const startTimeout = setTimeout(() => {
+      document.removeEventListener('keydown', startReveal);
+      playfulReveal(checks, correct, total, rawScore, adjustedScore, fullSeq, singleDay);
+    }, 1800);
+  }
+
+  function playfulReveal(checks, correct, total, rawScore, adjustedScore, fullSeq, singleDay) {
+    const status = adjustedScore === 1 ? '✅ RIGHT' : '❌ WRONG';
+    const statusColor = adjustedScore === 1 ? 'var(--success)' : 'var(--danger)';
+
+    render(`
+      <div class="reveal-header">
+        <h2 style="margin-bottom:4px">Result</h2>
+        <div class="result-status" style="color:${statusColor};font-size:2rem">${status}</div>
+        <p style="margin:4px 0;font-size:1.1rem">${correct} / ${total} correct &bull; ${Math.round(adjustedScore * 100)}%</p>
+      </div>
+      <div class="train-whistle" id="trainWhistle">🚂💨</div>
+      <div class="reveal-stage">
+        <div class="train-track">
+          <div class="train" id="train"></div>
+        </div>
+      </div>
+      <div class="reveal-hint" id="revealHint">Press any key to speed up…</div>
+    `);
+
+    const train = document.getElementById('train');
+    const hint = document.getElementById('revealHint');
+    const whistle = document.getElementById('trainWhistle');
+    let currentIndex = 0;
+    let exiting = false;
+    let intervalMs = 700;
+    let revealTimer = null;
+
+    function computeScale() {
+      if (!checks.length) return 1;
+      const baseWidth = 96;
+      const available = Math.min(560, window.innerWidth - 60);
+      return Math.min(1, Math.max(0.35, available / (checks.length * baseWidth)));
+    }
+    const scale = computeScale();
+
+    function addCarriage() {
+      if (currentIndex >= checks.length || exiting) {
+        finishReveal();
+        return;
+      }
+      const item = checks[currentIndex];
+      const carriage = document.createElement('div');
+      carriage.className = `train-carriage ${item.isCorrect ? '' : 'wrong'}`;
+      carriage.style.width = `${90 * scale}px`;
+      carriage.style.height = `${100 * scale}px`;
+      carriage.innerHTML = `
+        <span class="day-label" style="font-size:${0.75 * scale}rem">Day ${currentIndex + 1}</span>
+        <span class="carriage-number" style="font-size:${2.6 * scale}rem">${item.number}</span>
+        ${item.isCorrect ? '' : `<span class="user-answer" style="font-size:${0.8 * scale}rem">You: ${item.userVal || '—'}</span>`}
+      `;
+      train.appendChild(carriage);
+      currentIndex++;
+      if (currentIndex >= checks.length) {
+        finishReveal();
+      }
+    }
+
+    function finishReveal() {
+      clearInterval(revealTimer);
+      revealTimer = null;
+      if (whistle) whistle.style.opacity = '1';
+      if (hint) hint.textContent = 'All aboard! Press any key to send the train away 🚂';
+    }
+
+    function startExit() {
+      if (exiting) return;
+      exiting = true;
+      if (hint) hint.textContent = 'Choo choo! 🚂💨';
+      train.classList.add('exiting');
+      train.addEventListener('transitionend', () => {
+        document.removeEventListener('keydown', keyHandler);
+        resultScreen(correct, total, rawScore, adjustedScore, fullSeq, singleDay, checks);
+      }, { once: true });
+    }
+
+    function keyHandler(e) {
+      if (exiting) return;
+      e.preventDefault();
+      if (currentIndex < checks.length) {
+        intervalMs = Math.max(120, intervalMs * 0.65);
+        clearInterval(revealTimer);
+        addCarriage();
+        if (currentIndex < checks.length) {
+          revealTimer = setInterval(addCarriage, intervalMs);
+        }
+      } else {
+        startExit();
+      }
+    }
+
+    document.addEventListener('keydown', keyHandler);
+    revealTimer = setInterval(addCarriage, intervalMs);
   }
 
   function plotScreen() {
@@ -649,7 +889,7 @@
     info.pendingCheats = { fullSequence: 0, singleDay: 0 };
     saveData(data);
 
-    resultScreen(correct, total, rawScore, adjustedScore, fullSeq, singleDay);
+    launchPlayfulReveal(correct, total, rawScore, adjustedScore, fullSeq, singleDay);
   }
 
   // -----------------------------------------------------------------------
